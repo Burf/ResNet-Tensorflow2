@@ -1,5 +1,4 @@
 import tensorflow as tf
-import torch
 
 def res_basic_block(x, n_feature, stride_size = 1, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, prefix = "", **kwargs):
     out = tf.keras.layers.Conv2D(n_feature, kernel_size = 3, strides = stride_size, padding = "SAME", use_bias = False, kernel_initializer = "he_normal", name = prefix + "conv1")(x)
@@ -69,7 +68,12 @@ resnet_urls = {
 }
 
 def load_weight(keras_model, torch_url):
-    torch_weight = torch.hub.load_state_dict_from_url(torch_url, progress = True, check_hash = True)
+    try:
+        import torch
+        torch_weight = torch.hub.load_state_dict_from_url(torch_url, progress = True, check_hash = True)
+    except:
+        print("If you want to use 'ResNet Weight', please install 'torch 1.1▲'")
+        return keras_model
     
     conv = []
     bn = {"weight":[], "bias":[], "running_mean":[], "running_var":[]}

@@ -23,7 +23,7 @@ The implementation is based on [official implementation](https://github.com/pyto
 
 - Python 3
 - tensorflow 2
-- torch 1.1▲
+- torch 1.1▲ (Use the pre-trained weights)
    
 ## Contributor
 

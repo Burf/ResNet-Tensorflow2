@@ -1,45 +1,48 @@
 import tensorflow as tf
 
-def res_basic_block(x, n_feature, stride_size = 1, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, prefix = "", **kwargs):
+def normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, **kwargs):
+    return tf.keras.layers.BatchNormalization(axis = axis, momentum = momentum, epsilon = epsilon, **kwargs)
+
+def res_basic_block(x, n_feature, stride_size = 1, normalize = normalize, activation = tf.keras.activations.relu, prefix = "", **kwargs):
     out = tf.keras.layers.Conv2D(n_feature, kernel_size = 3, strides = stride_size, padding = "SAME", use_bias = False, kernel_initializer = "he_normal", name = prefix + "conv1")(x)
-    out = normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, name = prefix + "norm1")(out)
+    out = normalize(name = prefix + "norm1")(out)
     out = tf.keras.layers.Activation(activation, name = prefix + "act1")(out)
     out = tf.keras.layers.Conv2D(n_feature, kernel_size = 3, padding = "SAME", use_bias = False, kernel_initializer = "he_normal", name = prefix + "conv2")(out)
-    out = normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, name = prefix + "norm2")(out)
+    out = normalize(name = prefix + "norm2")(out)
     if stride_size != 1 or tf.keras.backend.int_shape(x)[-1] != n_feature: #downsample
         x = tf.keras.layers.Conv2D(n_feature, kernel_size = 1, strides = stride_size, padding = "SAME", use_bias = False, kernel_initializer = "he_normal", name = prefix + "downsample_conv")(x)
-        x = normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, name = prefix + "downsample_norm")(x)
+        x = normalize(name = prefix + "downsample_norm")(x)
     out = tf.keras.layers.Add(name = prefix + "residual")([out, x])
     out = tf.keras.layers.Activation(activation, name = prefix + "out")(out)
     return out
 
-def res_bottleneck_block(x, n_feature, stride_size = 1, group_size = 1, base_width = 64, expansion = 4, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, prefix = "", **kwargs):
+def res_bottleneck_block(x, n_feature, stride_size = 1, group_size = 1, base_width = 64, expansion = 4, normalize = normalize, activation = tf.keras.activations.relu, prefix = "", **kwargs):
     width = int(n_feature * (base_width / 64.)) * group_size
     out = tf.keras.layers.Conv2D(width, kernel_size = 1, strides = 1, padding = "SAME", use_bias = False, kernel_initializer = "he_normal", name = prefix + "conv1")(x)
-    out = normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, name = prefix + "norm1")(out)
+    out = normalize(name = prefix + "norm1")(out)
     out = tf.keras.layers.Activation(activation, name = prefix + "act1")(out)
     out = tf.keras.layers.Conv2D(width, kernel_size = 3, strides = stride_size, groups = group_size, padding = "SAME", use_bias = False, kernel_initializer = "he_normal", name = prefix + "conv2")(out)
-    out = normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, name = prefix + "norm2")(out)
+    out = normalize(name = prefix + "norm2")(out)
     out = tf.keras.layers.Activation(activation, name = prefix + "act2")(out)
     out = tf.keras.layers.Conv2D(n_feature * expansion, kernel_size = 1, strides = 1, padding = "SAME", use_bias = False, kernel_initializer = "he_normal", name = prefix + "conv3")(out)
-    out = normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, name = prefix + "norm3")(out)
+    out = normalize(name = prefix + "norm3")(out)
     if stride_size != 1 or tf.keras.backend.int_shape(x)[-1] != n_feature * expansion: #downsample
         x = tf.keras.layers.Conv2D(n_feature * expansion, kernel_size = 1, strides = stride_size, padding = "SAME", use_bias = False, kernel_initializer = "he_normal", name = prefix + "downsample_conv")(x)
-        x = normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, name = prefix + "downsample_norm")(x)
+        x = normalize(name = prefix + "downsample_norm")(x)
     out = tf.keras.layers.Add(name = prefix + "residual")([out, x])
     out = tf.keras.layers.Activation(activation, name = prefix + "out")(out)
     return out
 
-def res_stack(x, n_block, n_feature, stride_size = 1, group_size = 1, base_width = 64, block = res_bottleneck_block, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu, prefix = ""):
+def res_stack(x, n_block, n_feature, stride_size = 1, group_size = 1, base_width = 64, block = res_bottleneck_block, normalize = normalize, activation = tf.keras.activations.relu, prefix = ""):
     out = block(x, n_feature = n_feature, stride_size = stride_size, group_size = group_size, base_width = base_width, normalize = normalize, activation = activation, prefix = prefix + "block1_")
     for index in range(1, n_block):
         out = block(out, n_feature = n_feature, group_size = group_size, base_width = base_width, normalize = normalize, activation = activation, prefix = prefix + "block{0}_".format(index + 1))
     return out
 
-def resnet(x, n_blocks, block, n_class = 1000, include_top = False, group_size = 1, base_width = 64, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu):
+def resnet(x, n_blocks, block, n_class = 1000, include_top = False, group_size = 1, base_width = 64, normalize = normalize, activation = tf.keras.activations.relu):
     #stem
     out = tf.keras.layers.Conv2D(64, kernel_size = 7, strides = 2, padding = "SAME", use_bias = False, kernel_initializer = "he_normal", name = "stem_conv")(x)
-    out = normalize(axis = -1, momentum = 0.9, epsilon = 1e-5, name = "stem_norm")(out)
+    out = normalize(name = "stem_norm")(out)
     out = tf.keras.layers.Activation(activation, name = "stem_act")(out)
     out = tf.keras.layers.MaxPool2D(3, strides = 2, padding = "SAME", name = "stem_pooling")(out)
     
@@ -109,7 +112,7 @@ def resnet18(input_tensor = None, input_shape = None, classes = 1000, include_to
         else:
             img_input = input_tensor
 
-    out = resnet(img_input, [2, 2, 2, 2], res_basic_block, classes, include_top, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu)
+    out = resnet(img_input, [2, 2, 2, 2], res_basic_block, classes, include_top, normalize = normalize, activation = tf.keras.activations.relu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -127,7 +130,7 @@ def resnet34(input_tensor = None, input_shape = None, classes = 1000, include_to
         else:
             img_input = input_tensor
 
-    out = resnet(img_input, [3, 4, 6, 3], res_basic_block, classes, include_top, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu)
+    out = resnet(img_input, [3, 4, 6, 3], res_basic_block, classes, include_top, normalize = normalize, activation = tf.keras.activations.relu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -145,7 +148,7 @@ def resnet50(input_tensor = None, input_shape = None, classes = 1000, include_to
         else:
             img_input = input_tensor
 
-    out = resnet(img_input, [3, 4, 6, 3], res_bottleneck_block, classes, include_top, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu)
+    out = resnet(img_input, [3, 4, 6, 3], res_bottleneck_block, classes, include_top, normalize = normalize, activation = tf.keras.activations.relu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -163,7 +166,7 @@ def resnet101(input_tensor = None, input_shape = None, classes = 1000, include_t
         else:
             img_input = input_tensor
 
-    out = resnet(img_input, [3, 4, 23, 3], res_bottleneck_block, classes, include_top, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu)
+    out = resnet(img_input, [3, 4, 23, 3], res_bottleneck_block, classes, include_top, normalize = normalize, activation = tf.keras.activations.relu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -181,7 +184,7 @@ def resnet152(input_tensor = None, input_shape = None, classes = 1000, include_t
         else:
             img_input = input_tensor
 
-    out = resnet(img_input, [3, 8, 36, 3], res_bottleneck_block, classes, include_top, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu)
+    out = resnet(img_input, [3, 8, 36, 3], res_bottleneck_block, classes, include_top, normalize = normalize, activation = tf.keras.activations.relu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -199,7 +202,7 @@ def resnext50_32x4d(input_tensor = None, input_shape = None, classes = 1000, inc
         else:
             img_input = input_tensor
 
-    out = resnet(img_input, [3, 4, 6, 3], res_bottleneck_block, classes, include_top, group_size = 32, base_width = 4, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu)
+    out = resnet(img_input, [3, 4, 6, 3], res_bottleneck_block, classes, include_top, group_size = 32, base_width = 4, normalize = normalize, activation = tf.keras.activations.relu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -217,7 +220,7 @@ def resnext101_32x8d(input_tensor = None, input_shape = None, classes = 1000, in
         else:
             img_input = input_tensor
 
-    out = resnet(img_input, [3, 4, 23, 3], res_bottleneck_block, classes, include_top, group_size = 32, base_width = 8, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu)
+    out = resnet(img_input, [3, 4, 23, 3], res_bottleneck_block, classes, include_top, group_size = 32, base_width = 8, normalize = normalize, activation = tf.keras.activations.relu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -235,7 +238,7 @@ def wide_resnet50_2(input_tensor = None, input_shape = None, classes = 1000, inc
         else:
             img_input = input_tensor
 
-    out = resnet(img_input, [3, 4, 6, 3], res_bottleneck_block, classes, include_top, base_width = 128, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu)
+    out = resnet(img_input, [3, 4, 6, 3], res_bottleneck_block, classes, include_top, base_width = 128, normalize = normalize, activation = tf.keras.activations.relu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
@@ -253,7 +256,7 @@ def wide_resnet101_2(input_tensor = None, input_shape = None, classes = 1000, in
         else:
             img_input = input_tensor
 
-    out = resnet(img_input, [3, 4, 23, 3], res_bottleneck_block, classes, include_top, base_width = 128, normalize = tf.keras.layers.BatchNormalization, activation = tf.keras.activations.relu)
+    out = resnet(img_input, [3, 4, 23, 3], res_bottleneck_block, classes, include_top, base_width = 128, normalize = normalize, activation = tf.keras.activations.relu)
     model = tf.keras.Model(img_input, out)
     
     if weights == "imagenet":
